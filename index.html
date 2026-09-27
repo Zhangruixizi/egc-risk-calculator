@@ -1,33 +1,273 @@
 <!doctype html>
 <html lang="zh-CN">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
-    <title>早期胃癌非胃癌死亡风险计算器</title>
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📊</text></svg>" />
-    <!-- stlite：在浏览器中运行 Streamlit（Pyodide / WebAssembly），无需服务器，数据不离开浏览器 -->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@stlite/browser@1.9.2/build/stlite.css" />
-  </head>
-  <body>
-    <div id="root"></div>
-    <noscript>请启用 JavaScript 以使用本计算器。Please enable JavaScript to use this calculator.</noscript>
-    <script type="module">
-      import { mount } from "https://cdn.jsdelivr.net/npm/@stlite/browser@1.9.2/build/stlite.js";
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>早期胃癌非胃癌死亡风险计算器</title>
+<meta name="description" content="早期胃癌患者非胃癌死亡风险计算器：基于锁定的线性 Survival-SVM 模型与临床简化积分系统。" />
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📊</text></svg>" />
+<style>
+  :root {
+    --text: #31333f;
+    --muted: rgba(49, 51, 63, 0.6);
+    --bg: #ffffff;
+    --sidebar: #f0f2f6;
+    --border: rgba(49, 51, 63, 0.2);
+    --border-light: rgba(49, 51, 63, 0.1);
+    --primary: #ff4b4b;
+    --font: "Source Sans Pro", "Source Sans 3", -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--font); font-size: 16px; line-height: 1.6; }
 
-      // 直接读取仓库中的 app.py 和 risk_model.py：网页版与本地版共用同一份代码，改一处即可。
-      mount(
-        {
-          entrypoint: "app.py",
-          files: {
-            "app.py": { url: "./app.py" },
-            "risk_model.py": { url: "./risk_model.py" },
-          },
-          streamlitConfig: {
-            "client.toolbarMode": "viewer",
-          },
-        },
-        document.getElementById("root"),
-      );
-    </script>
-  </body>
+  .app { display: flex; min-height: 100vh; }
+
+  /* ---------- 侧边栏 ---------- */
+  .sidebar { width: 300px; flex: 0 0 300px; background: var(--sidebar); padding: 6rem 1.5rem 2rem; }
+  .sidebar h2 { font-size: 1.5rem; font-weight: 600; margin: 0 0 1rem; line-height: 1.2; }
+  .sidebar h3 { font-size: 1.25rem; font-weight: 600; margin: 1.75rem 0 0.75rem; line-height: 1.2; }
+  .label { font-size: 0.875rem; margin-bottom: 0.25rem; display: block; }
+
+  .number-input { display: flex; align-items: center; background: #fff; border-radius: 0.5rem; height: 2.5rem; border: 1px solid transparent; overflow: hidden; }
+  .number-input:focus-within { border-color: var(--primary); }
+  .number-input input { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; font: inherit; font-size: 0.875rem; color: var(--text); padding: 0 0.75rem; height: 100%; -moz-appearance: textfield; }
+  .number-input input::-webkit-outer-spin-button, .number-input input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+  .number-input button { width: 2rem; height: 100%; border: 0; background: transparent; color: var(--text); font-size: 1.1rem; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0; }
+  .number-input button:hover { background: var(--primary); color: #fff; }
+  .number-input button:disabled { color: rgba(49,51,63,0.3); background: transparent; cursor: default; }
+
+  .toggle { display: flex; align-items: flex-start; gap: 0.5rem; margin: 0 0 1rem; cursor: pointer; font-size: 0.875rem; line-height: 1.5; user-select: none; }
+  .toggle input { position: absolute; opacity: 0; width: 0; height: 0; }
+  .track { flex: 0 0 2rem; width: 2rem; height: 1rem; border-radius: 1rem; background: rgba(49,51,63,0.2); position: relative; margin-top: 0.15rem; transition: background 0.15s; }
+  .track::after { content: ""; position: absolute; top: 0.125rem; left: 0.125rem; width: 0.75rem; height: 0.75rem; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,0.2); transition: left 0.15s; }
+  .toggle input:checked + .track { background: var(--primary); }
+  .toggle input:checked + .track::after { left: 1.125rem; }
+  .toggle input:focus-visible + .track { outline: 2px solid var(--primary); outline-offset: 2px; }
+
+  /* ---------- 主区域 ---------- */
+  .main { flex: 1; min-width: 0; padding: 6rem 5rem 4rem; }
+  h1 { font-size: 2.75rem; font-weight: 700; margin: 0 0 0.5rem; line-height: 1.2; letter-spacing: -0.005em; }
+  .caption { font-size: 0.875rem; color: var(--muted); margin: 0 0 1rem; }
+  .main h3 { font-size: 1.75rem; font-weight: 600; margin: 1.25rem 0 0.75rem; line-height: 1.2; }
+
+  .cols { display: grid; gap: 1rem; }
+  .cols-2 { grid-template-columns: 1fr 1fr; }
+  .cols-3 { grid-template-columns: 1fr 1fr 1fr; }
+
+  .metric-label { font-size: 0.875rem; }
+  .metric-value { font-size: 2.25rem; line-height: 1.4; }
+
+  .alert { border-radius: 0.5rem; padding: 1rem; font-size: 1rem; margin: 0 0 1rem; }
+  .alert.success { background: rgba(33, 195, 84, 0.1); color: #177233; }
+  .alert.error { background: rgba(255, 43, 43, 0.09); color: #7d353b; }
+  .alert.warning { background: rgba(255, 189, 69, 0.1); color: #926c05; }
+
+  table.df { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 0.875rem; border: 1px solid var(--border-light); border-radius: 0.5rem; overflow: hidden; }
+  table.df th, table.df td { padding: 0.35rem 0.6rem; border-bottom: 1px solid var(--border-light); text-align: left; font-weight: 400; }
+  table.df th { color: var(--muted); background: #f8f9fb; }
+  table.df th + th, table.df td + td { border-left: 1px solid var(--border-light); }
+  table.df td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  table.df tr:last-child td { border-bottom: 0; }
+
+  details.expander { border: 1px solid var(--border); border-radius: 0.5rem; margin-top: 1.5rem; }
+  details.expander summary { cursor: pointer; padding: 0.6rem 1rem; font-size: 0.875rem; list-style: none; display: flex; align-items: center; gap: 0.5rem; }
+  details.expander summary::-webkit-details-marker { display: none; }
+  details.expander summary::before { content: "›"; display: inline-block; font-size: 1.1rem; transition: transform 0.15s; line-height: 1; }
+  details.expander[open] summary::before { transform: rotate(90deg); }
+  details.expander .body { padding: 0 1rem 1rem; font-size: 1rem; }
+  details.expander ul { margin: 0; padding-left: 1.5rem; }
+  details.expander li { margin: 0.25rem 0; }
+  code { font-family: "Source Code Pro", Consolas, monospace; font-size: 0.85em; background: #f0f2f6; color: #09ab3b; padding: 0.1em 0.3em; border-radius: 0.25rem; }
+
+  /* ---------- 窄屏：侧边栏置顶 ---------- */
+  @media (max-width: 900px) {
+    .main { padding: 3rem 2rem; }
+  }
+  @media (max-width: 760px) {
+    .app { flex-direction: column; }
+    .sidebar { width: auto; flex: none; padding: 1.5rem 1rem; }
+    .main { padding: 2rem 1rem 3rem; }
+    h1 { font-size: 2rem; }
+    .main h3 { font-size: 1.5rem; }
+    .cols-2 { grid-template-columns: 1fr; }
+    .metric-value { font-size: 1.75rem; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <h2>患者信息</h2>
+    <label class="label" for="age">年龄（岁）</label>
+    <div class="number-input">
+      <input id="age" type="number" inputmode="numeric" min="18" max="110" step="1" value="66" />
+      <button type="button" id="age-dec" aria-label="减少">−</button>
+      <button type="button" id="age-inc" aria-label="增加">+</button>
+    </div>
+    <h3>合并症指标</h3>
+    <div id="toggles"></div>
+  </aside>
+
+  <main class="main">
+    <h1>早期胃癌患者非胃癌死亡风险计算器</h1>
+    <p class="caption">基于锁定的线性 Survival-SVM 模型与临床简化积分系统</p>
+
+    <div id="age-warning" class="alert warning" hidden>当前年龄超出模型开发队列的观察范围，结果应谨慎解释。</div>
+
+    <div class="cols cols-2">
+      <section>
+        <h3>临床简化积分</h3>
+        <div class="cols cols-3">
+          <div><div class="metric-label">年龄积分</div><div class="metric-value" id="m-age"></div></div>
+          <div><div class="metric-label">合并症积分</div><div class="metric-value" id="m-com"></div></div>
+          <div><div class="metric-label">总分</div><div class="metric-value" id="m-total"></div></div>
+        </div>
+        <h3>各项积分</h3>
+        <table class="df">
+          <thead><tr><th>项目</th><th>分值</th></tr></thead>
+          <tbody id="items"></tbody>
+        </table>
+      </section>
+
+      <section>
+        <h3>预测结果</h3>
+        <div id="group" class="alert"></div>
+        <div class="cols cols-2" style="grid-template-columns: 1fr 1fr;">
+          <div><div class="metric-label">36个月预测风险</div><div class="metric-value" id="m-36"></div></div>
+          <div><div class="metric-label">60个月预测风险</div><div class="metric-value" id="m-60"></div></div>
+        </div>
+      </section>
+    </div>
+
+    <details class="expander">
+      <summary>模型计算说明</summary>
+      <div class="body">
+        <ul>
+          <li>临床简化积分：<code>floor((年龄 - 50) / 5) + 各合并症分值</code>；总分≥9分为高风险组。</li>
+          <li>绝对风险不由整数总分直接换算，而是由锁定的线性 Survival-SVM 连续风险评分及其OOF Cox校准关系计算。</li>
+          <li>本工具仅用于研究、风险沟通和临床辅助评估，不构成单独的诊断或治疗建议。</li>
+          <li>所有计算均在您的浏览器本地完成，输入信息不会上传到任何服务器。</li>
+        </ul>
+      </div>
+    </details>
+  </main>
+</div>
+
+<script>
+/* ================= 锁定模型参数（与 risk_model.py 完全一致） ================= */
+const RISK_CUTOFF = 9;
+const CALIBRATION_COEFFICIENT = 2.148962;
+const BASELINE_SURVIVAL_36 = 0.955523128;
+const BASELINE_SURVIVAL_60 = 0.909956429;
+
+const AGE = { beta: 0.166632905, mean: 66.064165844, sd: 8.501717451 };
+
+const PREDICTORS = [
+  { key: "copd", label: "慢性阻塞性肺疾病（COPD）", points: 7, beta: 0.156021618, mean: 0.058242843, sd: 0.234202080 },
+  { key: "myocardial_infarction", label: "心肌梗死", points: 4, beta: 0.098045484, mean: 0.083909181, sd: 0.277251565 },
+  { key: "moderate_to_severe_kidney_disease", label: "中重度肾脏疾病", points: 4, beta: 0.093176281, mean: 0.051332675, sd: 0.220675399 },
+  { key: "metastatic_tumor", label: "转移性实体肿瘤", points: 7, beta: 0.104440442, mean: 0.023692004, sd: 0.152087780 },
+  { key: "diabetes_with_end_organ_damage", label: "伴终末器官损害的糖尿病", points: 3, beta: 0.051327715, mean: 0.030602172, sd: 0.172237275 },
+  { key: "lymphoma", label: "淋巴瘤", points: 5, beta: 0.039493245, mean: 0.005923001, sd: 0.076732777 },
+  { key: "leukemia", label: "白血病", points: 5, beta: 0.024594699, mean: 0.002961500, sd: 0.054339028 },
+];
+
+function calculatePrediction(age, conditions) {
+  const values = {};
+  for (const p of PREDICTORS) values[p.key] = conditions[p.key] ? 1 : 0;
+
+  // 临床简化积分：仅用于高、低风险分层
+  const agePoints = Math.floor((age - 50) / 5);
+  const itemScores = {};
+  let comorbidityPoints = 0;
+  for (const p of PREDICTORS) {
+    itemScores[p.key] = values[p.key] * p.points;
+    comorbidityPoints += itemScores[p.key];
+  }
+  const totalScore = agePoints + comorbidityPoints;
+  const riskGroup = totalScore >= RISK_CUTOFF ? "高风险组" : "低风险组";
+
+  // 连续线性 Survival-SVM 评分：RS = Σ beta_j * (x_j - mean_j) / SD_j
+  let rs = AGE.beta * ((age - AGE.mean) / AGE.sd);
+  for (const p of PREDICTORS) rs += p.beta * ((values[p.key] - p.mean) / p.sd);
+
+  // 锁定的 OOF Cox 校准：Risk(t) = 1 - S0(t) ^ exp(2.148962 * RS)
+  const m = Math.exp(CALIBRATION_COEFFICIENT * rs);
+  return {
+    agePoints, comorbidityPoints, totalScore, riskGroup,
+    continuousRiskScore: rs,
+    risk36: 1 - Math.pow(BASELINE_SURVIVAL_36, m),
+    risk60: 1 - Math.pow(BASELINE_SURVIVAL_60, m),
+    itemScores,
+  };
+}
+
+const pct = (x) => (x * 100).toFixed(1) + "%";
+
+/* ================= 界面 ================= */
+const MIN_AGE = 18, MAX_AGE = 110;
+const ageInput = document.getElementById("age");
+const state = { age: 66, conditions: {} };
+
+const togglesEl = document.getElementById("toggles");
+for (const p of PREDICTORS) {
+  state.conditions[p.key] = false;
+  const lab = document.createElement("label");
+  lab.className = "toggle";
+  lab.innerHTML = `<input type="checkbox" data-key="${p.key}"><span class="track"></span><span>${p.label}（${p.points}分）</span>`;
+  lab.querySelector("input").addEventListener("change", (e) => {
+    state.conditions[p.key] = e.target.checked;
+    render();
+  });
+  togglesEl.appendChild(lab);
+}
+
+function setAge(v) {
+  state.age = Math.min(MAX_AGE, Math.max(MIN_AGE, Math.round(v)));
+  ageInput.value = state.age;
+  render();
+}
+ageInput.addEventListener("input", () => {
+  const v = Number(ageInput.value);
+  if (ageInput.value !== "" && Number.isInteger(v) && v >= MIN_AGE && v <= MAX_AGE) {
+    state.age = v;
+    render();
+  }
+});
+ageInput.addEventListener("change", () => {
+  const v = Number(ageInput.value);
+  setAge(ageInput.value === "" || !Number.isFinite(v) ? state.age : v);
+});
+document.getElementById("age-dec").addEventListener("click", () => setAge(state.age - 1));
+document.getElementById("age-inc").addEventListener("click", () => setAge(state.age + 1));
+
+function render() {
+  const { age, conditions } = state;
+  const r = calculatePrediction(age, conditions);
+
+  document.getElementById("age-dec").disabled = age <= MIN_AGE;
+  document.getElementById("age-inc").disabled = age >= MAX_AGE;
+  document.getElementById("age-warning").hidden = !(age < 50 || age > 89);
+
+  document.getElementById("m-age").textContent = `${r.agePoints}分`;
+  document.getElementById("m-com").textContent = `${r.comorbidityPoints}分`;
+  document.getElementById("m-total").textContent = `${r.totalScore}分`;
+
+  const rows = [`<tr><td>年龄（${age}岁）</td><td class="num">${r.agePoints}</td></tr>`];
+  for (const p of PREDICTORS) {
+    rows.push(`<tr><td>${p.label}（${conditions[p.key] ? "是" : "否"}）</td><td class="num">${r.itemScores[p.key]}</td></tr>`);
+  }
+  document.getElementById("items").innerHTML = rows.join("");
+
+  const g = document.getElementById("group");
+  g.textContent = r.riskGroup;
+  g.className = "alert " + (r.riskGroup === "高风险组" ? "error" : "success");
+
+  document.getElementById("m-36").textContent = pct(r.risk36);
+  document.getElementById("m-60").textContent = pct(r.risk60);
+}
+
+render();
+</script>
+</body>
 </html>
