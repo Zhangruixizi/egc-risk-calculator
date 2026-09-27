@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+    <title>早期胃癌非胃癌死亡风险计算器</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📊</text></svg>" />
+    <!-- stlite：在浏览器中运行 Streamlit（Pyodide / WebAssembly），无需服务器，数据不离开浏览器 -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@stlite/browser@1.9.2/build/stlite.css" />
+  </head>
+  <body>
+    <div id="root"></div>
+    <noscript>请启用 JavaScript 以使用本计算器。Please enable JavaScript to use this calculator.</noscript>
+    <script type="module">
+      import { mount } from "https://cdn.jsdelivr.net/npm/@stlite/browser@1.9.2/build/stlite.js";
+
+      // 直接读取仓库中的 app.py 和 risk_model.py：网页版与本地版共用同一份代码，改一处即可。
+      mount(
+        {
+          entrypoint: "app.py",
+          files: {
+            "app.py": { url: "./app.py" },
+            "risk_model.py": { url: "./risk_model.py" },
+          },
+          streamlitConfig: {
+            "client.toolbarMode": "viewer",
+          },
+        },
+        document.getElementById("root"),
+      );
+    </script>
+  </body>
+</html>
