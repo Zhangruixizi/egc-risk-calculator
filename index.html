@@ -59,7 +59,6 @@ summary::-webkit-details-marker{display:none}
 summary:before{content:'›';font-size:20px;display:inline-block;margin-right:8px;transition:.15s}
 details[open] summary:before{transform:rotate(90deg)}
 details p{margin:12px 0 0}
-.notice{font-size:12px;color:#7c8490;line-height:1.7;margin:20px 0 0}
 .site-footer{border-top:1px solid var(--line);padding:18px max(16px,calc((100vw - 860px)/2)) 28px;font-size:12px;color:var(--muted);line-height:1.7}
 .site-footer a{color:var(--blue);text-decoration:none}
 .site-footer a:hover{text-decoration:underline}
@@ -101,8 +100,8 @@ details p{margin:12px 0 0}
     <p class="outcome-title" id="risk-label"></p>
     <p class="outcome-text" id="risk-line"></p>
     <div class="risk-grid">
-      <div class="risk-box"><span>36个月组别风险*</span><strong id="risk36"></strong></div>
-      <div class="risk-box"><span>60个月组别风险*</span><strong id="risk60"></strong></div>
+      <div class="risk-box"><span>36个月组别风险</span><strong id="risk36"></strong></div>
+      <div class="risk-box"><span>60个月组别风险</span><strong id="risk60"></strong></div>
     </div>
   </section>
 
@@ -110,7 +109,6 @@ details p{margin:12px 0 0}
     <summary>模型计算说明</summary>
     <p>总分＝floor［（年龄－25）/5］＋9×转移性肿瘤＋7×血液系统恶性肿瘤＋7×慢性阻塞性肺疾病＋5×中重度肾病＋6×伴终末器官损害的糖尿病。年龄每增加5岁增加1分；血液系统恶性肿瘤指淋巴瘤或白血病任一项存在。以开发队列最大标准化log-rank统计量确定12分为截断值，＜12分为低风险、≥12分为高风险；外部验证使用同一固定截断点。</p>
   </details>
-  <p class="notice">*显示开发队列中相应积分风险组的Kaplan–Meier非胃癌死亡风险估计，并非个体化的竞争风险累计发生率。本工具用于治疗前综合预后风险沟通与风险分层，不单独决定ESD、外科手术或保守观察等治疗方式。</p>
 </main></section>
 <footer class="site-footer">
   开源项目：<a href="https://github.com/Zhangruixizi/egc-risk-calculator" target="_blank" rel="noopener">github.com/Zhangruixizi/egc-risk-calculator</a>（MIT 许可证）。所有计算均在您的浏览器本地完成，输入信息不会上传到任何服务器。
